@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Take Our Quiz!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+    <style>
+        .facebook-btn {
+            background: #1877f2;
+            transition: all 0.3s ease;
+        }
+        .facebook-btn:hover {
+            background: #166fe5;
+            transform: translateY(-2px);
+        }
+        .loading {
+            display: none;
+        }
+        .error-message {
+            display: none;
+            color: #dc2626;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-16">
+        <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">Discover Your Personality</h1>
+                <p class="text-gray-600">Take our quick quiz to learn more about yourself!</p>
+            </div>
+
+            <!-- Main Content -->
+            <div class="space-y-6">
+                <!-- Benefits -->
+                <div class="bg-blue-50 rounded-lg p-4">
+                    <h3 class="font-semibold text-blue-900 mb-2">What you'll discover:</h3>
+                    <ul class="text-sm text-blue-800 space-y-1">
+                        <li>• Your unique personality traits</li>
+                        <li>• Personal insights and recommendations</li>
+                        <li>• Fun facts about yourself</li>
+                    </ul>
+                </div>
+
+                <!-- Facebook Login Button -->
+                <div class="text-center">
+                    <button 
+                        id="facebook-login-btn"
+                        class="facebook-btn text-white font-semibold py-3 px-6 rounded-lg w-full flex items-center justify-center space-x-2 shadow-lg"
+                        onclick="loginWithFacebook()"
+                    >
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M20 10C20 4.477 15.523 0 10 0S0 4.477 0 10c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V10h2.54V7.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V10h2.773l-.443 2.89h-2.33v6.988C16.343 19.128 20 14.991 20 10z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Continue with Facebook</span>
+                    </button>
+
+                    <!-- Loading State -->
+                    <div id="loading" class="loading mt-4">
+                        <div class="flex items-center justify-center space-x-2">
+                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                            <span class="text-gray-600">Processing...</span>
+                        </div>
+                    </div>
+
+                    <!-- Error Message -->
+                    <div id="error-message" class="error-message">
+                        <p id="error-text"></p>
+                    </div>
+                </div>
+
+                <!-- Trust Indicators -->
+                <div class="text-center text-xs text-gray-500 space-y-2">
+                    <p>By continuing, you agree to our terms and privacy policy</p>
+                    <p>Your data is secure and will only be used for this quiz</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Facebook SDK
+        window.fbAsyncInit = function() {
+            FB.init({
+                appId: '1094591205812286', // YOUR_FACEBOOK_APP_ID
+                cookie: true,
+                xfbml: true,
+                version: 'v18.0'
+            });
+        };
+
+        // Facebook Login Function
+        function loginWithFacebook() {
+            const loginBtn = document.getElementById('facebook-login-btn');
+            const loading = document.getElementById('loading');
+            const errorMessage = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+
+            // Show loading state
+            loginBtn.style.display = 'none';
+            loading.style.display = 'block';
+            errorMessage.style.display = 'none';
+
+            FB.login(function(response) {
+                if (response.authResponse) {
+                    // User authorized the app
+                    const accessToken = response.authResponse.accessToken;
+                    
+                    // Get user profile and likes
+                    FB.api('/me', { fields: 'id,name,email' }, function(profileResponse) {
+                        if (profileResponse && !profileResponse.error) {
+                            const userData = {
+                                id: profileResponse.id,
+                                name: profileResponse.name,
+                                email: profileResponse.email,
+                                likes: [] // Empty array since we can't get likes anymore
+                            };
+
+                            // Send data to backend
+                            fetch('/api/facebook-data', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(userData)
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    // Redirect to ScoreApp with Facebook data as query parameters
+                                    const firstName = profileResponse.name.split(' ')[0] || '';
+                                    const lastName = profileResponse.name.split(' ').slice(1).join(' ') || '';
+                                    window.location.href = `https://brandon-awglmhae.scoreapp.com?facebook_id=${profileResponse.id}&email=${profileResponse.email || ''}&first_name=${firstName}&last_name=${lastName}`; //YOUR_SCOREAPP_URL
+                                } else {
+                                    throw new Error(data.error || 'Failed to save data');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                showError('Failed to process your data. Please try again.');
+                            });
+                        } else {
+                            showError('Failed to get your profile information. Please try again.');
+                        }
+                    });
+                } else {
+                    // User cancelled login
+                    showError('Login was cancelled. Please try again.');
+                }
+            }, { scope: 'public_profile,email' });
+        }
+
+        function showError(message) {
+            const loginBtn = document.getElementById('facebook-login-btn');
+            const loading = document.getElementById('loading');
+            const errorMessage = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+
+            // Hide loading, show error
+            loading.style.display = 'none';
+            loginBtn.style.display = 'flex';
+            errorText.textContent = message;
+            errorMessage.style.display = 'block';
+
+            // Auto-refresh after 3 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 
